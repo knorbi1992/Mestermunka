@@ -20,12 +20,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST')
     $time = $_POST['time'];
     $note = $_POST['note'];
     $userId = $_SESSION['id']; // Felhasználó azonosító
+    $appointmentDateTime = new DateTime("$date $time");
 
-    // SQL bejegyzés beszúrása
-    $stmt = $conn->prepare("INSERT INTO idopont (user, date, time, note) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("ssss", $userName, $date, $time, $note);
+    // Időpontok ütközésének ellenőrzése
+    $stmt = $conn->prepare("SELECT date, time FROM idopont WHERE date = ?");
+    $stmt->bind_param("s", $date);
     $stmt->execute();
+    $stmt->bind_result($existingDate, $existingTime);
+    
+    $conflict = false;
+    while ($stmt->fetch()) 
+    {
+        $existingDateTime = new DateTime("$existingDate $existingTime");
+        $interval = $appointmentDateTime->diff($existingDateTime);
+        if (abs($interval->h) < 1 && $interval->days == 0) 
+        {
+            $conflict = true;
+            break;
+        }
+    }
     $stmt->close();
+
+    if ($conflict) 
+    {
+        echo "<script>alert('Az időpont ütközik egy meglévő foglalással. Kérjük, válasszon másik időpontot.');</script>";
+    } 
+    else 
+    {
+        // SQL bejegyzés beszúrása
+        $stmt = $conn->prepare("INSERT INTO idopont (user, date, time, note) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $userName, $date, $time, $note);
+        $stmt->execute();
+        $stmt->close();
+        echo "<script>alert('Időpont sikeresen foglalva!');</script>";
+    }
 }
 ?>
 <!DOCTYPE html>
